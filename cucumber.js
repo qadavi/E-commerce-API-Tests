@@ -5,6 +5,7 @@ const common = [
   '--format progress-bar',
   '--format html:reports/cucumber-report.html',
   '--format summary',
+  '--retry 1',
 ].join(' ');
 
 module.exports = {

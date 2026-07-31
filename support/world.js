@@ -37,6 +37,43 @@ class CustomWorld extends World {
     const contentType = response.headers()['content-type'] || '';
     this.responseBody = contentType.includes('application/json') ? await response.json() : null;
   }
+
+  // Central place every step goes through to call the API, so every step in
+  // the report carries the same thing you'd see testing manually in
+  // Postman: request (method/url/headers/body), response status, duration
+  // and response body.
+  async apiRequest(method, url, options = {}) {
+    const start = Date.now();
+    const response = await this.apiContext[method](url, options);
+    const duration = Date.now() - start;
+    await this.setResponse(response);
+
+    const summary = `${method.toUpperCase()} ${url} -> ${response.status()} (${duration}ms)`;
+    this.log(summary);
+    this.attach(summary, 'text/plain');
+    this.attach(
+      JSON.stringify(
+        {
+          request: {
+            method: method.toUpperCase(),
+            url,
+            headers: options.headers || {},
+            body: options.data ?? null,
+          },
+          response: {
+            status: response.status(),
+            durationMs: duration,
+            body: this.responseBody,
+          },
+        },
+        null,
+        2
+      ),
+      'application/json'
+    );
+
+    return response;
+  }
 }
 
 setWorldConstructor(CustomWorld);
