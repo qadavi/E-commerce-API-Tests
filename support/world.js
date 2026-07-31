@@ -1,6 +1,6 @@
 const { setWorldConstructor, World } = require('@cucumber/cucumber');
 const { request } = require('@playwright/test');
-const { BASE_URL } = require('./config');
+const { BASE_URL, USERS } = require('./config');
 
 class CustomWorld extends World {
   constructor(options) {
@@ -30,6 +30,29 @@ class CustomWorld extends World {
 
   authHeaders() {
     return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+  }
+
+  async loginAs(username) {
+    const user = USERS[username];
+    const response = await this.apiRequest('post', '/api/login', {
+      data: { username: user.username, password: user.password },
+    });
+    if (response.ok()) {
+      this.token = this.responseBody.token;
+      this.role = this.responseBody.role;
+      this.username = user.username;
+    }
+    return response;
+  }
+
+  async findProductByName(productName) {
+    const response = await this.apiRequest('get', '/api/products');
+    const products = await response.json();
+    const product = products.find((p) => p.name === productName);
+    if (!product) {
+      throw new Error(`No seeded product named "${productName}"`);
+    }
+    return product;
   }
 
   async setResponse(response) {

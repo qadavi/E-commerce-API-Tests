@@ -33,7 +33,8 @@ Feature: Order management - critical paths
     And I cancel that order
     Then the response status should be 403
     And the response should contain an error message
-    When I retrieve that order
+    When I authenticate as "customer1"
+    And I retrieve that order
     Then the order status should be "pending"
 
   @critical
@@ -50,3 +51,32 @@ Feature: Order management - critical paths
     Then the response status should be 400
     And the response should contain an error message
     And the stock for "USB-C Hub" should still be 3
+
+  @rate-limit
+  Scenario: Exceeding the order-creation rate limit is rejected
+    Given I am authenticated as "customer1"
+    When I rapidly place 6 orders for 1 unit of "Wireless Mouse"
+    Then the response status should be 429
+    And the response should contain an error message
+
+  @business-rule
+  Scenario: An admin can update the order status
+    Given I am authenticated as "customer1"
+    And I have placed an order for 1 unit of "Wireless Mouse"
+    When I authenticate as "admin"
+    And I update that order status to "processing"
+    Then the response status should be 200
+    And the order status should be "processing"
+
+  @edge-case
+  Scenario: Retrieving a non-existent order returns 404
+    Given I am authenticated as "customer1"
+    When I retrieve the order "00000000-0000-0000-0000-000000000000"
+    Then the response status should be 404
+    And the response should contain an error message
+
+  @edge-case
+  Scenario: Retrieving a non-existent product returns 404
+    When I retrieve the product "does-not-exist"
+    Then the response status should be 404
+    And the response should contain an error message

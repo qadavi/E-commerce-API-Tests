@@ -1,26 +1,11 @@
 const { Given, When, Then } = require('@cucumber/cucumber');
 const { expect } = require('@playwright/test');
 
-async function findProductByName(world, productName) {
-  const response = await world.apiRequest('get', '/api/products');
-  const products = await response.json();
-  const product = products.find((p) => p.name === productName);
-  if (!product) {
-    throw new Error(`No seeded product named "${productName}"`);
-  }
-  return product;
-}
-
-async function findProductIdByName(world, productName) {
-  const product = await findProductByName(world, productName);
-  return product.id;
-}
-
 async function placeOrder(world, quantity, productName) {
-  const productId = await findProductIdByName(world, productName);
+  const product = await world.findProductByName(productName);
   await world.apiRequest('post', '/api/orders', {
     headers: world.authHeaders(),
-    data: { items: [{ productId, quantity }] },
+    data: { items: [{ productId: product.id, quantity }] },
   });
 }
 
@@ -39,10 +24,36 @@ When('I retrieve that order', async function () {
   });
 });
 
+When('I retrieve the order {string}', async function (orderId) {
+  await this.apiRequest('get', `/api/orders/${orderId}`, {
+    headers: this.authHeaders(),
+  });
+});
+
 When('I cancel that order', async function () {
   await this.apiRequest('delete', `/api/orders/${this.myOrder.id}`, {
     headers: this.authHeaders(),
   });
+});
+
+When('I update that order status to {string}', async function (status) {
+  await this.apiRequest('put', `/api/orders/${this.myOrder.id}/status`, {
+    headers: this.authHeaders(),
+    data: { status },
+  });
+});
+
+// Fires the requests sequentially, fast enough to land in the same 10s
+// rate-limit window. this.response/this.responseBody end up holding the
+// last (6th) call, which is the one the scenario asserts on.
+When('I rapidly place {int} orders for {int} unit(s) of {string}', async function (count, quantity, productName) {
+  const product = await this.findProductByName(productName);
+  for (let i = 0; i < count; i += 1) {
+    await this.apiRequest('post', '/api/orders', {
+      headers: this.authHeaders(),
+      data: { items: [{ productId: product.id, quantity }] },
+    });
+  }
 });
 
 Then('the order status should be {string}', function (status) {
@@ -90,6 +101,6 @@ Then('the order total should be calculated correctly', function () {
 });
 
 Then('the stock for {string} should still be {int}', async function (productName, expectedStock) {
-  const product = await findProductByName(this, productName);
+  const product = await this.findProductByName(productName);
   expect(product.stock).toBe(expectedStock);
 });
