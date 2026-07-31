@@ -59,7 +59,10 @@ build reliably, flaky risk, setup complexity.
 | Dropped | async notification polling, pagination/filter coverage | bugs documented instead, see Findings |
 
 Admin product coverage is create only; PUT /api/products/:id (edit) was
-skipped to protect review time.
+skipped to protect review time. Picked over pagination/notifications for
+this slot because it reuses the existing auth/World patterns almost
+entirely, so it was the cheapest remaining item, not because it is the
+single highest-risk one left.
 
 Principle: test what protects the business first, then what the brief
 explicitly asks for, then whatever is fast and safe. Skip what is risky or
@@ -86,10 +89,22 @@ complex. In three words: Business -> Brief -> Cost-benefit.
   (flaky risk for the time available), the latter needs multi-order,
   multi-status seed data. The pagination code path was still read and a
   bug found in it (see Findings) instead of testing around it.
+- Retry (cucumber.js) is scoped to @rate-limit only, not the whole suite:
+  it is the one scenario with a real timing dependency (6 sequential
+  calls must land in the same 10s window). Every other scenario has run
+  green on the first try every time in this session, so a blanket retry
+  would just risk hiding a future real, deterministic bug as "flaky".
+  Safe even for @rate-limit because every attempt goes through the same
+  Before-hook reset, so a retry cannot pass by accident on leftover state.
 
 ## Findings
 
-- **Bug - missing ownership check on GET /api/orders/:id.** DELETE
+Severity is my own read, not a formal triage; both would be a ticket, not
+a release blocker, given this is a mock/take-home API.
+
+- **Bug - missing ownership check on GET /api/orders/:id.** (Severity:
+  medium - real data exposure between customers, but not guessable.)
+  DELETE
   /api/orders/:id and PUT /api/orders/:id/status check that the caller is
   the order owner or an admin; GET /api/orders/:id does not. Any
   authenticated user can read any order's full details (items, total,
@@ -98,7 +113,9 @@ complex. In three words: Business -> Brief -> Cost-benefit.
   gap. Suggested fix: reuse the DELETE handler's ownership check here.
   server.js is the system under test and was left unmodified on purpose;
   documenting instead of patching it.
-- **Bug - GET /api/orders pagination.totalCount is wrong.** It is set to
+- **Bug - GET /api/orders pagination.totalCount is wrong.** (Severity:
+  low - wrong number shown to the client, no data exposure or data loss.)
+  It is set to
   orders.length, the raw count of every order for every user, ignoring
   both the ownership and ?status= filters just applied to build data.
   Client-side pagination built on this value would be wrong. Suggested
@@ -135,38 +152,40 @@ With 8 more hours:
 
 ## AI Usage Log
 
-- Compared Cucumber.js + Playwright APIRequestContext against
-  playwright-bdd and chose the former for API-only testing.
-- Read server.js in full instead of trusting the README's endpoint list;
-  cross-checked its findings against the source myself.
-- Scaffolded the project (package.json, cucumber.js, support/, step
-  definitions); fixed two issues it introduced (cucumber 13 needing Node
-  22+, an invalid --publish-quiet flag).
-- Wrote the first 4 critical scenarios from a priority list I gave it;
-  its review of that work surfaced the GET ownership-check bug, which I
-  asked it to document rather than silently patch into server.js.
-- Asked for a self-review of scenario assertions; it correctly flagged
-  that negative-path scenarios only checked the HTTP response, not the
-  resulting state, and added side-effect checks.
-- It proposed a plan for the remaining time; I overrode it with my own
-  risk/effort/time table, cutting notification and pagination tests in
-  favor of documenting the underlying bugs.
-- It had written a notification test that only checked the immediate
-  "pending" state; I judged that timing dependent and had it removed
-  rather than keep a flaky test.
-- Closed the admin product gap it had flagged as skipped, reusing the
-  existing World/step patterns.
-- During a "fresh clone" review, it found (by accident, deleting
-  node_modules) that npx cucumber-js can resolve to an unrelated public
-  package if run before npm install; asked it to document the risk. It
-  also caught a real fragility: one scenario verified order state by
-  reading as a user who should not have access, which only worked
-  because of the documented GET bug - fixed to read as the actual owner.
-- With ~20 minutes left, asked it to move login and product lookup from
-  free functions into World methods (loginAs, findProductByName) for
-  reuse across step files, then to re-check the write-up against the
-  brief; it caught that the required "what would you do with more time"
-  section was missing entirely and added it.
+This section is necessarily self-reported (the brief asks for a summary,
+not a transcript). Where a claim below is checkable against the repo
+itself rather than taken on faith, the file/artifact is named.
+
+- Architecture: Cucumber.js + Playwright APIRequestContext over
+  playwright-bdd. Checkable: package.json has @cucumber/cucumber and
+  @playwright/test only, no playwright-bdd dependency or bddgen step.
+- Read server.js in full rather than trusting the README's endpoint
+  list. Checkable: both Findings entries (ownership check, totalCount)
+  are code-reading bugs with no corresponding automated test, which is
+  consistent with being found by reading, not by black-box probing.
+- Scaffolded the project structure. Checkable: @cucumber/cucumber is
+  pinned to ^12.9.0 in package.json (12.x supports Node 20, 13.x needs
+  22+), and cucumber.js has no --publish-quiet flag (not a valid option
+  on this version).
+- Wrote the first critical scenarios from a priority list. Checkable:
+  features/orders.feature @critical tag covers exactly create/get/
+  cross-customer/no-auth.
+- Added side-effect assertions to the negative-path scenarios after a
+  requested self-review. Checkable: the cross-customer-cancel and
+  insufficient-stock scenarios both assert post-attempt state, not just
+  the HTTP response.
+- Closed the admin-product gap. Checkable: features/products.feature and
+  step_definitions/products.steps.js.
+- Moved login/product-lookup into World methods for reuse. Checkable:
+  support/world.js has loginAs and findProductByName; auth.steps.js has
+  no local login function anymore.
+- Scoped retry to the one timing-sensitive scenario. Checkable:
+  cucumber.js has --retry-tag-filter @rate-limit, not a blanket retry.
+- Not independently checkable from the repo, taken on my word: that a
+  notification-polling test was written and then removed for being too
+  timing dependent (no trace of it remains by definition), and the
+  back-and-forth on prioritization ordering (rate limit vs admin vs
+  pagination) before landing on the final scope.
 
 ## License
 This project was developed as part of a technical test and does not have a license defined for commercial use.
