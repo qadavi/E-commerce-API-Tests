@@ -1,0 +1,18 @@
+{
+  "name": "qa-take-home-order-api",
+  "version": "1.0.0",
+  "description": "Mock Order Management API for QA Automation take-home exercise (2h version)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "cucumber-js",
+    "test:tags": "cucumber-js --tags"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "^12.9.0",
+    "@playwright/test": "^1.62.1"
+  }
+}
