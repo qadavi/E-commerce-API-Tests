@@ -10,6 +10,16 @@ rules, rate limiting, 404 edge cases and admin product authorization.
 - Cucumber.js as the BDD runner (Gherkin scenarios)
 - Playwright APIRequestContext as the HTTP client
 
+## Prerequisites
+
+- Node.js 20, 22 or 24+ (cucumber@^12.9.0 requires one of these; tested
+  on Node 20.15.0) and npm.
+- `npm install` installs @playwright/test like any other devDependency;
+  no extra step is needed. Unlike typical Playwright projects, you do
+  NOT need to run `npx playwright install` (browser binaries) - this
+  suite only uses Playwright APIRequestContext as an HTTP client, never
+  a real browser.
+
 ## How to run
 
 ```bash
